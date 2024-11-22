@@ -2,9 +2,9 @@ import { BadRequestException, Injectable, Query } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { User } from './schemas/user.schema';
-import { hashPassword } from '@/auth/hash';
+import mongoose, { Model } from 'mongoose';
+import { User, UserDocument } from './schemas/user.schema';
+import { hashPassword } from '@/utils/hash';
 import aqp from 'api-query-params';
 import { query } from 'express';
 import { queryHandler } from '@/utils/queries';
@@ -14,14 +14,15 @@ export class UsersService {
   constructor(@InjectModel(User.name) private userModel: Model<User>) {}
 
   isEmailExist = async (email: string): Promise<boolean> => {
-    const a = await this.userModel.exists({ email });
-    if (a) {
+    const isExist = await this.userModel.exists({ email });
+    if (isExist) {
       return true;
     }
     return false;
   };
   async create(createUserDto: CreateUserDto) {
-    const { address, email, image, name, password, phone } = createUserDto;
+    const { address, email, username, image, name, password, phone } =
+      createUserDto;
 
     //check email exist
     if (await this.isEmailExist(email)) {
@@ -33,6 +34,7 @@ export class UsersService {
       address,
       email,
       image,
+      username,
       name,
       password: hashedPassword,
       phone,
@@ -59,15 +61,25 @@ export class UsersService {
     };
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} user`;
+  async findUserById(id: string) {
+    return await this.userModel.findOne({ _id: id });
   }
 
-  update(id: number, updateUserDto: UpdateUserDto) {
-    return `This action updates a #${id} user`;
+  async findUserByUsername(username: string): Promise<UserDocument> {
+    return await this.userModel.findOne({ username });
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} user`;
+  async update(updateUserDto: UpdateUserDto) {
+    return await this.userModel.updateOne(
+      { _id: updateUserDto._id },
+      { ...updateUserDto },
+    );
+  }
+
+  async remove(id: string) {
+    if (mongoose.isValidObjectId(id)) {
+      return this.userModel.deleteOne({ _id: id });
+    }
+    throw new BadRequestException('Invalid id');
   }
 }
